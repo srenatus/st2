@@ -13,9 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import sys
-import json
 import argparse
+import json
+import sys
+import traceback
 
 from st2common import log as logging
 from st2actions import config
@@ -54,17 +55,28 @@ class PythonActionWrapper(object):
 
     def run(self):
         action = self._get_action_instance()
-        output = action.run(**self._parameters)
+
+        stream = None
+        try:
+            # XXX: We need a way for actions to return status and result.
+            output = action.run(**self._parameters)
+            stream = sys.stdout
+            exit_code = 0
+        except Exception as e:
+            output = traceback.format_exc(e)
+            stream = sys.stderr
+            exit_code = 1
 
         # Print output to stdout so the parent can capture it
-        sys.stdout.write(ACTION_OUTPUT_RESULT_DELIMITER)
+        stream.write(ACTION_OUTPUT_RESULT_DELIMITER)
         print_output = None
         try:
             print_output = json.dumps(output)
         except:
             print_output = str(output)
-        sys.stdout.write(print_output + '\n')
-        sys.stdout.write(ACTION_OUTPUT_RESULT_DELIMITER)
+        stream.write(print_output + '\n')
+        stream.write(ACTION_OUTPUT_RESULT_DELIMITER)
+        sys.exit(exit_code)
 
     def _get_action_instance(self):
         actions_cls = action_loader.register_plugin(Action, self._file_path)
